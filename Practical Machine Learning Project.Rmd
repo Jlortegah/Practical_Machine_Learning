@@ -1,0 +1,124 @@
+---
+title: "Practical Machine Learning - Prediction Assignment Writeup"
+author: "Jesus Ortega"
+date: "23 de septiembre de 2015"
+output: html_document
+---
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+## The data sets for analysis
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+
+
+## Getting and Cleaning Data
+
+The datasets have been downloaded to local machine, and saved in the working directory. the code for loading and cleaning the datasets
+
+  * **Loading datasets**
+```{r}
+training<-read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!"))
+testing<-read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!"))
+# the dimension of training data set
+dim(training)
+# the dimension of testing data set
+dim(testing)
+
+table(training$classe)
+```
+
+There are 19622 observation in traning dataset, including 160 variables. The last column is the target variable classe. The most abundant class is A.
+
+  * **Remove all the variables containing NA values and unrelevant variables**
+
+```{r}
+training <- training[ , colSums(is.na(training)) == 0]
+# remove variables 'X', 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window', 'num_window'
+training = training[,-c(1:7)]
+training$classe = factor(training$classe)
+
+# The testing dataset has been processed in the same way
+testing <- testing[ , colSums(is.na(testing)) == 0]
+testing = testing[,-c(1:7)]
+str(training)
+```
+
+## Analysis with Cross Validation
+
+It is a classification problem. Classification methods we will use are: Random forest and Decision tress, the Caret package and to estimate the performance of the models we use k-fold cross-validation
+
+  * **Random Forest**
+  
+```{r warning=FALSE}
+library(caret)
+library(randomForest)
+set.seed(1234)
+ctrl = trainControl(method="cv",number=5,allowParallel=TRUE,verboseIter = FALSE)
+rf_model = train(classe~., data=training, method="rf",trControl = ctrl)
+```
+
+
+  * **Decision Trees**
+  
+```{r warning=FALSE}
+tree_model = train(classe~.,data=training,method="rpart",trControl=ctrl)
+```
+
+### Measuring prediction performance with a confusion matrix
+
+```{r}
+#predict labels using the fitted model, rf_model 
+rf_predict = predict(rf_model, training)
+
+#predict labels using the fitted model, tree_model
+tree_predict = predict(tree_model, training)
+```
+
+
+We can check the performance of these two models on the training dataset
+
+```{r}
+#Generate confusion matrix using the prediction results and the actual labels from the training dataset
+
+#Confusion Matrix for Random Forest
+confusionMatrix(rf_predict, training[,c("classe")])
+
+#Confusion Matrix for Classification Tree
+confusionMatrix(tree_predict, training[,c("classe")])
+```
+
+From the results, it appears that the random forest model has the best accuracy for training dataset.
+
+## Conclusion
+
+Finally, I chosed the random forest model to the testing dataset for submission result.
+
+```{r}
+answers=predict(rf_model,testing)
+pml_write_files = function(x){ 
+  n = length(x) 
+  for(i in 1:n){ 
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE) 
+  }
+}
+
+answers
+
+pml_write_files(answers)
+
+```
+
